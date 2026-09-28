@@ -69,6 +69,29 @@ the totals summed. A cache-bearing turn is seeded too, so the summary row must
 read 累计 = 输入 + 输出 (输入 being the whole prompt side: fresh + cache). It
 also replays a live report (`usage://changed`) to show the page growing
 mid-turn. No app, no database, no saved state.
+Open `/tests/browser/plan-review.html` for the plan preview & approval UI:
+timeline cards in every lifecycle state (draft / awaiting / superseded /
+approved / expired) with accessible status text, the approval dock over the
+composer (three actions, exec-permission readout, no approve focus by
+default), and a long Markdown plan (Chinese, emoji, GFM table, code fences,
+超长文) both inline and in the full-preview side panel (Esc/backdrop close
+sends nothing). The store is seeded statically; no model, no backend, no
+saved conversation.
+
+Open `/tests/browser/split-layout.html` to check the conversation split view
+(Trellis-style tiling) against real layout: the real `SplitLayout`,
+`SplitDragProvider` and `ChatConversation` render one column first; dragging a
+sidebar session onto the right edge must create a second pane at the half-width
+divider (with its header and one divider, layout persisted in localStorage),
+「向下分屏」 must add an empty pane with the drag/new-chat hint, closing it must
+return to two panes, dragging a pane header onto another pane's center must swap
+their sessions, dragging a session tab from the real tab strip down into the
+conversation area must split there too (a horizontal drag inside the strip still
+reorders), dragging the divider must follow the pointer ratio and clamp at
+the 220px minimum pane, and closing down to one pane must return to the solo
+column and clear the stored layout. The chat store's `focusTab` and the git
+store's IPC actions are stubbed; no app, no backend, no model.
+
 Open `/tests/browser/collapsible-message.html` to check the long-message
 collapse: a user message taller than 480px clamps to 320px behind a bottom
 fade into the bubble fill with a centered chevron, the chevron toggles
