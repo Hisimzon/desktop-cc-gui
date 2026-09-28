@@ -223,6 +223,15 @@ commit draft, switch to Files or collapse the sidebar, then return: the draft
 must survive, hidden rows must be removed, and the list must still scroll to
 the final file. The metrics output reports requests, mounted rows and actions.
 
+Open `/tests/browser/markdown-preview.html` to check the files-feature Markdown
+preview (Streamdown) against a document covering GFM tables, heading levels,
+lists, task list, blockquote, fenced code, KaTeX math and a Mermaid diagram:
+tables render with a bordered wrapper and styled header row, code blocks carry
+language header + copy/download controls with `files.markdown.*` labels, the
+block formula renders via KaTeX, and the Mermaid diagram stays an empty
+container until scrolled into view (IntersectionObserver lazy render), then
+draws the flow SVG. No app, no backend, no saved state.
+
 Open `/tests/browser/plugin-detail-rail.html` to check the plugin detail page
 at a desktop width (1145x731 in the verification run, with the app's 40px tab
 strip and 28px status bar around the real `PluginDetailPage`): a README fence

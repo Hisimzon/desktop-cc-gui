@@ -121,6 +121,8 @@
 
 - **界面缩放与字体设置一处存储、多处入口**：设置 → 通用 → 外观的「界面缩放」与状态栏 ± 按钮、缩放快捷键（⌘= / ⌘- / ⌘0，快捷键页可改）读写同一份 localStorage 百分比（`src/lib/zoom.ts`，50–200、步进 10），经 `ccgui:zoom-change` 事件互相同步，任一入口改动其余立刻跟上；应用走 Tauri 原生 webview zoom，重启由状态栏启动时重放。「界面字体 / 代码字体」（`src/features/settings/font.ts`）持久化在 AppSettings：`fontFamily` / `codeFontFamily` 存模式（空 = 「系统默认」，含旧 `system` 值，即内置 Inter / JetBrains Mono 加系统回退；`custom` = 上传的字体文件），`fontFile` / `codeFontFile` 存该文件绝对路径；应用方式是覆盖根元素 `--font-inter` / `--font-mono-source` 变量（聊天代码块与内置终端随 `--font-mono-source`，终端经 `ccgui:font-change` 事件热更 `term.options.fontFamily` 并重新 fit），bootstrap 首帧前从 localStorage 镜像预应用避免换字闪烁。自定义模式 = 下拉（只有「系统默认 / 自定义」两项）选「自定义」后右侧出现文件选择按钮，点击唤起原生字体文件对话框（TTF/OTF/TTC/WOFF/WOFF2），选中的文件经 Rust `read_font_file` 读取（校验字体魔数与 64 MB 上限，base64 回传）后用 FontFace API 注册为固定字节性家族名（`CCGUI Custom UI/Code Font`，重选替换旧 face），加载完成再触发 `ccgui:font-change` 让终端按真实字体重新量度；读取失败（不存在 / 过大 / 非字体）显示本地化错误并保留原选择，不落半成品设置。路径持久化：切回「系统默认」不清除已上传文件，再次选「自定义」直接重新应用（无需重选）；文件被移走/删除则静默回退到字体栈里的后备字体，设置不丢。旧 `system` 值与文件选择器之前的已安装字体名统一归并到「系统默认」（模式归一化，根变量随之移除），不再按字体名渲染。Web 访问模式不提供自定义（无原生对话框，且 web 桥不暴露任意文件读取），文件选择器与「自定义」选项只在桌面端渲染。宿主字体栈（`--font-sans` / `--font-mono` / `--default-font-family` / `--default-mono-font-family`）在 `theme.css` 的 `:root` 里额外以**无层**声明重推一次：插件 bundle 注入在 `@layer ccgui-plugins`（层序在 `theme` 之后），自带 Tailwind 构建的插件会输出 `--font-sans: var(--font-sans-host), …`，而它自己又声明 `--font-sans-host: var(--font-sans, …)`，两者成环使计算值为 guaranteed-invalid，preflight 回退到 `-apple-system`，界面/代码字体设置静默失效（kimi-lb 实测）；无层声明胜过所有 @layer，插件不能再改写宿主字体栈（`@theme` 里的同名定义仍保留，供实用类生成）。回归：`font-settings.test.tsx`、`builtin-search.test.tsx` 行索引用例、`plugin-ui-tokens.test.ts` 无层重推守卫、Rust `fonts::tests`。
 
+- **文件 Markdown 预览用 Streamdown 渲染**：`MarkdownPreview.tsx` 用 Vercel Streamdown（`mode="static"` + `code`/`math`/`mermaid`/`cjk` 插件），不再是裸 react-markdown 加手写标题样式（旧预览的 GFM 表格渲染成无边框纯文本）。它的 shadcn token（`bg-background`、`text-muted-foreground`、`border-border` 等）在 `src/styles/globals.css` 桥接到语义 token（`:root` 映射 + `@theme inline` 导出、`@source` 扫描 dist），暗色随 `.dark` 翻转，不另写 `dark:`。表格/代码块/图表的复制、下载、全屏按钮文案走 `files.markdown.*` i18n；外链一律 `openExternal` 交系统浏览器（内置 link-safety 弹层关闭，避免双重确认）；本地相对图片仍解析到 Markdown 文件旁的真实路径（`resolveMarkdownImageSrc`）。Mermaid 图滚入视口才渲染（IntersectionObserver 懒渲染），离屏留白是设计行为；编辑预览用 deferred 草稿整篇重解析，不逐键击卡顿。回归：`tests/browser/markdown-preview.html`。
+
 ## 4. 动作反馈
 
 - **大型过程组有界展示**：`ProcessDisclosure` 每页最多 40 条思考/工具条目，默认展示最新页；「上一页 / 下一页 / 回到最新」保留全部历史可访问。用户翻到旧页后，新增工具不抢回最新页；对话内搜索命中隐藏条目时展开过程并定位到对应页。大组或批量入场取消 blur/height/mask 动画，不裁剪思考或工具原文。
@@ -250,6 +252,7 @@ const feedback = useRunningFeedback(store.loading);
 
 | 版本 | 时间 | 内容 |
 |---|---|---|
+| v0.62 | 2026-09-28 | 文件 Markdown 预览换 Streamdown：GFM 表格/代码块（Shiki + 行号 + 复制）/KaTeX 数学/Mermaid 图（懒渲染）/CJK 支持，shadcn token 桥接语义 token 随暗色翻转，控制按钮文案入 `files.markdown.*`；§3 补充规则 |
 | v0.61 | 2026-09-24 | 渠道下拉收起前归还触发按钮焦点，修复 Codex 切换供应商后面板跳到 Claude Code；增加焦点回归用例，浏览器夹具覆盖多引擎与真实聚焦的渠道选择；§3 补充规则 |
 | v0.60 | 2026-09-27 | 对话区分屏：侧栏拖拽 / 右键 / 格子标题栏入口，边带切分 + 中心替换、格子拖动重排与内容互换、分隔条比例（最小 220/140px）、每格独立输入框与队列、聚焦格跟随页签条高亮、布局持久化并随页签关闭收敛；§3 补充规则 |
 | v0.59 | 2026-09-24 | 计划预览与人工审批统一 UI：时间线计划卡 + 输入区审批 dock（批准并执行 / 提出修改 / 暂不执行，执行权限快照旁注，CAS 冲突只读快照；暂不执行收起 dock，卡片「继续审批」重开），九状态可访问徽标，完整计划预览层（Esc/背景只收起不审批），与插件会话模式双向互斥，重开会话经 `listPlanReviews` 恢复；§3 补充规则 |
