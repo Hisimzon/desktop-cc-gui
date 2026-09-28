@@ -11,7 +11,9 @@
 //! user's own `opencode serve`) is never touched.
 
 use std::process::Stdio;
-use std::sync::{Arc, Mutex};
+#[cfg(windows)]
+use std::sync::Arc;
+use std::sync::Mutex;
 
 use serde_json::Value;
 use tokio::process::Child;
@@ -59,7 +61,9 @@ impl OpencodeServerState {
         // Release the job last: closing the last handle sweeps any survivor
         // of the tree, which is the same end state as the kills above.
         #[cfg(windows)]
-        *lock(&self.job) = None;
+        {
+            *lock(&self.job) = None;
+        }
         *lock(&self.origin) = None;
     }
 }
@@ -141,7 +145,9 @@ pub(crate) async fn ensure_server(
             // Hand the job guard to the server state: it must outlive this
             // function. Dropping it here would sweep the tree immediately.
             #[cfg(windows)]
-            *lock(&state.job) = tree_guard;
+            {
+                *lock(&state.job) = tree_guard;
+            }
             *lock(&state.origin) = Some(origin.clone());
             return Ok(origin);
         }
