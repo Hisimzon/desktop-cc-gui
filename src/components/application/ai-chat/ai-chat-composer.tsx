@@ -445,7 +445,7 @@ function ProxyQuickToggle() {
     <Tooltip>
       <AriaButton
         aria-label={label}
-        aria-pressed={enabled}
+        aria-pressed={action === "toggle" ? enabled : undefined}
         isDisabled={busy}
         onPress={() => void toggle()}
         className={cx(
