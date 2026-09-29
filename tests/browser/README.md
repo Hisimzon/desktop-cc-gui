@@ -20,7 +20,9 @@ This is a DOM-bound check, not a native CPU benchmark.
 Open `/tests/browser/bot-editor.html` for the real 智能体 pane and bot editor
 against in-memory bots: the list shows identity, runtime and skill counts,
 filters and pin toggles work, a row opens the full-bleed editor, the avatar
-studio repaints the generated SVG, and 拼装预览 lists the blocks the model
+studio repaints the generated avatar (canvas, not SVG — the 36px list rows
+paint new frames too, sample one canvas twice to check it is animating, not
+frozen), and 拼装预览 lists the blocks the model
 would receive (empty ones marked 已省略, blocks waiting on a tool this build
 lacks marked 即将支持). The
 `?open=1&tab=能力&preview=1&theme=dark` query opens the editor, a section tab,
@@ -172,7 +174,9 @@ Open `/tests/browser/agent-prompt-menus.html` to check the composer's `#`
 agent picker and `!` prompt picker against seeded stores: the agent menu
 groups 我的智能体 then one section per enabled built-in division (flat when
 filtering), and the prompt menu rows carry 工作区/全局 scope badges; both
-end in a fixed "new" row that jumps to Settings. No app, no backend.
+end in a fixed "new" row that jumps to Settings. Generated avatars animate in
+the 16px rows (the popover mounts above the viewport in this fixture, so pin
+it into view before sampling a canvas twice). No app, no backend.
 
 Open `/tests/browser/delete-confirm-popover.html` to check the session-delete
 confirmation: right-clicking the thread row and picking 删除 must open a

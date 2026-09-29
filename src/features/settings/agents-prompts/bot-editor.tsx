@@ -25,6 +25,10 @@ import { isPlannedTab } from "./bot-concept-diagram";
  *  file is not rewritten per keystroke). */
 const AUTOSAVE_MS = 600;
 
+/** 四个未上线分区（运行后端 / 记忆 / 定时任务 / 协作）暂时不进页签栏：分区实现
+ *  和概念图都还在，等它们真能用时把这里改回 true 即可。 */
+const SHOW_PLANNED_TABS = false;
+
 type TabId =
   | "soul"
   | "rules"
@@ -184,8 +188,8 @@ export function BotEditor({
     [],
   );
 
-  const tabs: Array<{ id: TabId; label: string; planned?: boolean }> = useMemo(
-    () => [
+  const tabs: Array<{ id: TabId; label: string; planned?: boolean }> = useMemo(() => {
+    const all: Array<{ id: TabId; label: string; planned?: boolean }> = [
       { id: "soul", label: t("settings.botTabSoul") },
       { id: "rules", label: t("settings.botTabRules") },
       { id: "capabilities", label: t("settings.botTabCapabilities") },
@@ -193,9 +197,9 @@ export function BotEditor({
       { id: "memory", label: t("settings.botTabMemory"), planned: true },
       { id: "routines", label: t("settings.botTabRoutines"), planned: true },
       { id: "collab", label: t("settings.botTabCollab"), planned: true },
-    ],
-    [t],
-  );
+    ];
+    return SHOW_PLANNED_TABS ? all : all.filter((entry) => !entry.planned);
+  }, [t]);
 
   const saveLabel =
     save.kind === "saving"

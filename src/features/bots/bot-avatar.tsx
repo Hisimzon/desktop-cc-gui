@@ -212,14 +212,13 @@ export function avatarLabel(
   return label ? label(avatar.foldShape ?? "", avatar.eyes ?? "") : "";
 }
 
-/** Sizes below this render one static frame: a 16px canvas in every list row
- *  does not need its own animation loop (the engine also skips off-screen
- *  canvases, but a paused one never starts the loop at all). */
-const ANIMATE_FROM = 40;
-
 /**
- * One bot avatar at a square size. Generated avatars animate from 40px up
- * (the editor's preview); emoji and image avatars are unchanged from v1.
+ * One bot avatar at a square size. Every generated avatar animates — the
+ * `#` menu's 16px rows blink and glance around exactly like the editor's
+ * preview, so a bot reads as the same character wherever it shows up (the
+ * engine shares one requestAnimationFrame across instances and skips
+ * off-screen canvases, so a long list is not a list of timers). Emoji and
+ * image avatars are unchanged from v1.
  */
 export function BotAvatarView({
   avatar,
@@ -294,12 +293,7 @@ export function BotAvatarView({
       data-testid="bot-avatar"
       data-avatar-type="generated"
     >
-      <AgentAvatar
-        config={config!}
-        size={size}
-        paused={size < ANIMATE_FROM}
-        label={label}
-      />
+      <AgentAvatar config={config!} size={size} label={label} />
     </span>
   );
 }

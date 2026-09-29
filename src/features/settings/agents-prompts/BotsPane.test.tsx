@@ -69,6 +69,7 @@ vi.mock("@/features/skills/api", async (importOriginal) => {
 import "@/lib/i18n";
 import { useBotStore } from "@/features/bots/bot-store";
 import { BotsPane } from "./BotsPane";
+import { PlannedSection } from "./bot-editor-sections";
 
 globalThis.ResizeObserver ??= class {
   observe() {}
@@ -304,36 +305,36 @@ describe("BotsPane", () => {
     expect(text()).not.toContain("阶段");
   });
 
-  it("draws the planned sections as 即将支持 concept flows, not phase badges", async () => {
+  it("hides the unshipped sections from the tab bar", async () => {
     await render();
     await openEditor();
-    // Each unshipped tab says 即将支持 instead of a roadmap phase number: the
-    // phases stay in 计划.md, where 「阶段 3」does not read like a version the
-    // user is waiting for, and out of the UI.
-    for (const [label, node, absent] of [
-      ["运行后端", "三种运行后端，随时可换", "写入前的三道闸"],
-      ["记忆", "写入前的三道闸", "三种运行后端，随时可换"],
-      ["定时任务", "客户端此刻在运行吗", "写入前的三道闸"],
-      ["协作", "群聊：2–6 个智能体加你", "写入前的三道闸"],
-    ] as const) {
-      const tab = findButton((el) => el.textContent?.startsWith(label));
-      expect(tab).toBeTruthy();
-      expect(tab!.textContent).toContain("即将支持");
-      await act(async () => {
-        tab!.click();
-      });
-      expect(text()).toContain(node);
-      expect(text()).not.toContain(absent);
-      // The diagram is an illustration, not a disabled form.
-      const diagram = document.querySelector('[data-testid="bot-concept"]');
-      expect(diagram).toBeTruthy();
-      expect(diagram!.textContent).toContain(node);
-      expect(
-        diagram!.querySelectorAll("input, textarea, button, [role='switch']"),
-      ).toHaveLength(0);
+    // 运行后端 / 记忆 / 定时任务 / 协作 are entry points that are hidden for
+    // now: the sections themselves stay built (next test), only the tabs go.
+    for (const label of ["运行后端", "记忆", "定时任务", "协作"] as const) {
+      expect(findButton((el) => el.textContent?.startsWith(label))).toBeUndefined();
     }
-    expect(text()).not.toContain("P2");
-    expect(text()).not.toContain("P3");
+    expect(findButton((el) => el.textContent === "人格")).toBeTruthy();
+    expect(findButton((el) => el.textContent === "工作规则")).toBeTruthy();
+    expect(findButton((el) => el.textContent === "能力")).toBeTruthy();
+  });
+
+  it("keeps the planned sections as read-only 即将支持 concept flows", async () => {
+    // Rendered directly: the tab is hidden for now, not deleted, so the
+    // section behind it has to stay presentable for when it comes back. Its
+    // copy says 即将支持 rather than a roadmap phase number — 「阶段 3」 read
+    // like a version the user could wait for. The phases stay in 计划.md.
+    await act(async () => {
+      root.render(<PlannedSection tab="memory" avatar={null} name="太奶" />);
+    });
+    expect(text()).toContain("写入前的三道闸");
+    expect(text()).toContain("即将支持");
     expect(text()).not.toContain("阶段");
+    // The diagram is an illustration, not a disabled form.
+    const diagram = document.querySelector('[data-testid="bot-concept"]');
+    expect(diagram).toBeTruthy();
+    expect(diagram!.textContent).toContain("写入前的三道闸");
+    expect(
+      diagram!.querySelectorAll("input, textarea, button, [role='switch']"),
+    ).toHaveLength(0);
   });
 });

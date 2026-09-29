@@ -9,6 +9,7 @@ import { entrancePose, ENTRANCE_SECONDS } from "./entrance";
 import { workingPose, WORKING_SECONDS } from "./working";
 import type { AvatarConfig } from "./model";
 import { drawFace, drawSleepMarks, easeFace, expressionRig, faceAtSize, gazeAngles, type FaceRig } from "./face";
+import { subscribeFrame } from "./frame-loop";
 import { advanceWander, createWander, type WanderState } from "./wander";
 
 const TAU = Math.PI * 2;
@@ -67,10 +68,8 @@ function silhouette(c: AvatarConfig, phase: number) {
 }
 
 /** Colors here are editable artwork, independent of the surrounding UI theme. */
-function drawAvatar(canvas: HTMLCanvasElement, c: AvatarConfig, phase: number, rig: FaceRig, gaze: [number, number], cssSize: number, entranceSeconds = ENTRANCE_SECONDS, workingSeconds = WORKING_SECONDS, shapeMorph?: ShapeMorph, workingCycles = 1) {
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-  const size = canvas.width;
+function drawAvatar(ctx: CanvasRenderingContext2D, c: AvatarConfig, phase: number, rig: FaceRig, gaze: [number, number], cssSize: number, entranceSeconds = ENTRANCE_SECONDS, workingSeconds = WORKING_SECONDS, shapeMorph?: ShapeMorph, workingCycles = 1) {
+  const size = ctx.canvas.width;
   ctx.clearRect(0, 0, size, size);
   ctx.save();
   ctx.scale(size / 200, size / 200);
@@ -171,6 +170,11 @@ export function AgentAvatar({ config, size = 64, paused = false, label = "Agent 
     const canvas = ref.current;
     if (!canvas) return;
     canvas.width = canvas.height = Math.round(size * Math.min(window.devicePixelRatio || 1, 2));
+    // Without a 2D context there is nothing to paint (jsdom, a canvas that
+    // refused one): skip the observer and the frame subscription instead of
+    // running a loop whose every draw is a no-op.
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
     const cycles = Math.max(1, Math.floor(workingCycles));
     const workingDuration = WORKING_SECONDS * cycles;
@@ -188,13 +192,13 @@ export function AgentAvatar({ config, size = 64, paused = false, label = "Agent 
       phase.current = seed / 4294967296 * TAU;
     }
     attention.current ??= createAttention(crypto.getRandomValues(new Uint32Array(1))[0] ^ config.seed);
-    let frame = 0, last = 0, visible = true, transitioning = true;
+    let stop: (() => void) | null = null, last = 0, visible = true, transitioning = true;
     const target = expressionRig(appearance);
     expression.current ??= face.current ?? target;
     face.current ??= target;
     gaze.current ??= gazeAngles(appearance, phase.current, target, wander.current.point);
     if (config.idle || workingKey === undefined) working.current.elapsed = workingDuration;
-    const draw = () => drawAvatar(canvas, appearance, phase.current, face.current ?? target, gaze.current ?? [0, 0], size, entrance.current.elapsed, working.current.elapsed, paused || reduced.matches || config.motion === 0 ? undefined : shapeMorph.current, cycles);
+    const draw = () => drawAvatar(ctx, appearance, phase.current, face.current ?? target, gaze.current ?? [0, 0], size, entrance.current.elapsed, working.current.elapsed, paused || reduced.matches || config.motion === 0 ? undefined : shapeMorph.current, cycles);
     const tick = (now: number) => {
       if (!last) last = now;
       if (now - last >= (transitioning ? 16 : 32)) {
@@ -221,10 +225,9 @@ export function AgentAvatar({ config, size = 64, paused = false, label = "Agent 
         }
         last = now;
       }
-      frame = requestAnimationFrame(tick);
     };
     const start = () => {
-      cancelAnimationFrame(frame); last = 0;
+      stop?.(); stop = null; last = 0;
       if (reduced.matches || config.motion === 0) {
         entrance.current.elapsed = ENTRANCE_SECONDS;
         working.current.elapsed = workingDuration;
@@ -238,12 +241,12 @@ export function AgentAvatar({ config, size = 64, paused = false, label = "Agent 
         if (!paused || config.lookAt !== "wander") gaze.current = gazeAngles(appearance, phase.current, target, wander.current?.point);
       }
       draw();
-      if (!paused && !reduced.matches && config.motion > 0) frame = requestAnimationFrame(tick);
+      if (!paused && !reduced.matches && config.motion > 0) stop = subscribeFrame(tick);
     };
     const observer = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; });
     observer.observe(canvas);
     reduced.addEventListener("change", start); start();
-    return () => { cancelAnimationFrame(frame); observer.disconnect(); reduced.removeEventListener("change", start); };
+    return () => { stop?.(); observer.disconnect(); reduced.removeEventListener("change", start); };
   }, [config, size, paused, entranceKey, workingKey, workingCycles]);
   return <canvas ref={ref} role="img" aria-label={label} style={{ width: size, height: size, maxWidth: "100%", objectFit: "contain" }} />;
 }
