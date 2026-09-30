@@ -75,6 +75,10 @@ export interface EngineEventDeps {
   upsertSessionMeta: (meta: SessionMeta) => void;
   /** Re-fetch the latest token usage from session history for the given session key. */
   refreshSessionUsage?: (key: string) => Promise<void>;
+  /** After a turn settles: feeds the background memory review's turn counter
+   *  (features/bots/memory-review.ts). Optional so tests can drive the router
+   *  without the memory feature. */
+  turnSettled?: (key: string) => void;
 }
 
 /** Collapse whitespace and cap a prompt for use as a session title. */
@@ -1210,6 +1214,9 @@ function onDone(event: ChatEngineEvent, key: string, deps: EngineEventDeps) {
   // Native file changed; refresh list cache in background.
   void ipc.rescanSessions().catch(() => {});
   deps.markUnseenIfBackground(key);
+  // 一轮对话落定（正常完成或被用户中断）时计数；是否到节奏、用哪个 Bot
+  // 复盘由记忆模块判断（features/bots/memory-review.ts）。
+  deps.turnSettled?.(key);
   // An interrupted turn settles here too: keep the queue parked — the user
   // stopped the session, the next message is theirs to send.
   if (!prev.interrupted) {

@@ -11,6 +11,7 @@ import { cx } from "@/utils/cx";
 import { BotAvatarView } from "@/features/bots/bot-avatar";
 import { refreshBotBlocks } from "@/features/bots/selected-bot";
 import { useBotStore } from "@/features/bots/bot-store";
+import { useChatStore } from "@/features/chat/store";
 import type { BotConfig } from "@/lib/ipc";
 import { BotAvatarStudio } from "./bot-avatar-studio";
 import { BotPromptPreview } from "./bot-prompt-preview";
@@ -19,14 +20,16 @@ import {
   PlannedSection,
   ProseSection,
 } from "./bot-editor-sections";
+import { MemorySection } from "./memory-section";
 import { isPlannedTab } from "./bot-concept-diagram";
 
 /** Debounce before an edit is written to disk (typing feels instant, the
  *  file is not rewritten per keystroke). */
 const AUTOSAVE_MS = 600;
 
-/** 四个未上线分区（运行后端 / 记忆 / 定时任务 / 协作）暂时不进页签栏：分区实现
- *  和概念图都还在，等它们真能用时把这里改回 true 即可。 */
+/** 运行后端 / 定时任务 / 协作 暂时不进页签栏：分区实现和概念图都还在，等它们
+ *  真能用时把这里改回 true 即可。记忆已在「核心闭环」范围内，页签常驻
+ *  （见 `visibleTabs`）。 */
 const SHOW_PLANNED_TABS = false;
 
 type TabId =
@@ -193,13 +196,15 @@ export function BotEditor({
       { id: "soul", label: t("settings.botTabSoul") },
       { id: "rules", label: t("settings.botTabRules") },
       { id: "capabilities", label: t("settings.botTabCapabilities") },
+      // 记忆已上线，不再带 planned 标记；其余三个仍是概念图。
+      { id: "memory", label: t("settings.botTabMemory") },
       { id: "runtime", label: t("settings.botTabRuntime"), planned: true },
-      { id: "memory", label: t("settings.botTabMemory"), planned: true },
       { id: "routines", label: t("settings.botTabRoutines"), planned: true },
       { id: "collab", label: t("settings.botTabCollab"), planned: true },
     ];
     return SHOW_PLANNED_TABS ? all : all.filter((entry) => !entry.planned);
   }, [t]);
+  const engines = useChatStore((s) => s.engines);
 
   const saveLabel =
     save.kind === "saving"
@@ -391,6 +396,13 @@ export function BotEditor({
               {tab === "capabilities" && (
                 <CapabilitiesSection
                   bot={draft}
+                  onChange={(patch) => applyLocal(patch)}
+                />
+              )}
+              {tab === "memory" && (
+                <MemorySection
+                  bot={draft}
+                  engines={engines}
                   onChange={(patch) => applyLocal(patch)}
                 />
               )}

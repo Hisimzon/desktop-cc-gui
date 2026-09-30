@@ -692,6 +692,34 @@ fn bot_update_blocking(id: String, patch: BotPatch) -> Result<Option<Bot>, Strin
     Ok(Some(bot))
 }
 
+/// 一个 Bot 的 MEMORY 字数上限（memory.rs 的写入闸与注入用量共用）。Bot 已删
+/// 或配置损坏时返回 None，调用方退回默认值——在跑的会话不该因为用户删了
+/// Bot 而让记忆工具突然失效。
+pub(crate) fn memory_char_limit(id: &str) -> Option<usize> {
+    let bot = load_bot(&bot_dir(&bots_dir(), id)).ok().flatten()?;
+    Some(bot.memory.memory_char_limit as usize).filter(|limit| *limit > 0)
+}
+
+/// 这个 Bot 是否要求记忆写入先审批（memory/pending.rs 的写入闸）。Bot 已删
+/// 或配置读不到时按默认（不审批）处理：会话还在跑，工具不该因为主人删了 Bot
+/// 变得不可用；面板手动写入本来就不走审批。
+pub(crate) fn memory_write_approval(id: &str) -> bool {
+    load_bot(&bot_dir(&bots_dir(), id))
+        .ok()
+        .flatten()
+        .is_some_and(|bot| bot.memory.write_approval)
+}
+
+/// 这个 Bot 是否参与后台复盘（记忆开着、复盘也开着）。前端按它决定要不要
+/// 发起 `memory_review`，命令层再查一次（界面可能拿着过期配置）。Bot 已删时
+/// false。
+pub(crate) fn memory_review_enabled(id: &str) -> bool {
+    load_bot(&bot_dir(&bots_dir(), id))
+        .ok()
+        .flatten()
+        .is_some_and(|bot| bot.memory.enabled && bot.memory.review_enabled)
+}
+
 fn bot_delete_blocking(id: String) -> Result<bool, String> {
     let root = bots_dir();
     let dir = bot_dir(&root, &id);
@@ -1039,10 +1067,25 @@ pub async fn bot_update(id: String, patch: BotPatch) -> Result<Option<Bot>, Stri
 }
 
 #[tauri::command]
-pub async fn bot_delete(id: String) -> Result<bool, String> {
-    tauri::async_runtime::spawn_blocking(move || bot_delete_blocking(id))
-        .await
-        .map_err(|e| e.to_string())?
+pub async fn bot_delete(
+    db: tauri::State<'_, std::sync::Arc<crate::db::Db>>,
+    id: String,
+) -> Result<bool, String> {
+    let deleted = tauri::async_runtime::spawn_blocking({
+        let id = id.clone();
+        move || bot_delete_blocking(id)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    // The folder is already in the trash; a failed cleanup must not turn that
+    // into an error. Without this the bot's MEMORY rows would outlive every
+    // entry point that could show or delete them (USER is global, untouched).
+    if deleted {
+        if let Err(error) = crate::memory::forget_bot(&db, &id) {
+            eprintln!("[memory] forget_bot({id}) failed: {}", error.message);
+        }
+    }
+    Ok(deleted)
 }
 
 #[tauri::command]

@@ -54,6 +54,7 @@ import {
   migrateSelectedBot,
 } from "@/features/bots/selected-bot";
 import { buildBotPromptBlock } from "@/features/bots/bot-block";
+import { engineSupportsMemory } from "@/features/bots/memory";
 import { botById } from "@/features/bots/bot-store";
 import { assembleBotPrompt, builtInBotShell } from "@/features/bots/bot-prompt";
 import { appendCommittedRows } from "./session-utils";
@@ -150,6 +151,13 @@ export function createMessagingActions(
     // exact text, so editing the bot mid-conversation cannot change a prompt
     // the model has already been primed with (and the prefix cache holds).
     const selectedBot = getSelectedBot(tab.workspacePath, tab.sessionId);
+    // 记忆工具每次发送都要重新挂载（每次发送都是一个新进程）；冻结的只是
+    // 提示词。能挂的条件：选中了自定义 Bot、它开着记忆、这个引擎支持 MCP。
+    const pinnedBot = selectedBot ? botById(selectedBot.id) : null;
+    const memoryToolAvailable =
+      pinnedBot !== null &&
+      pinnedBot.memory.enabled !== false &&
+      engineSupportsMemory(get().engines, tab.engine);
     // Built-in resolve failures are re-flagged after the optimistic-turn
     // patch below (which resets `error` for the new turn).
     let agentResolveError: string | null = null;
@@ -179,7 +187,7 @@ export function createMessagingActions(
       } else {
         const bot = botById(selectedBot.id);
         if (bot) {
-          const block = await buildBotPromptBlock(bot);
+          const block = await buildBotPromptBlock(bot, { memoryToolAvailable });
           freezeSelectedBotBlock(tab.workspacePath, tab.sessionId, block);
           prompt += `\n\n${block}`;
         } else {
@@ -312,6 +320,7 @@ export function createMessagingActions(
         ),
         providerId: provider,
         computerUse: options?.computerUse === true,
+        memoryBot: memoryToolAvailable ? pinnedBot.id : null,
       });
       // Older backends choose their own id. Retire the provisional route.
       if (result.runId !== requestedRunId) {

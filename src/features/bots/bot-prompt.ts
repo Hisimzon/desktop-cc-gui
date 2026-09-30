@@ -75,8 +75,10 @@ export interface PromptBlock {
   limit?: number;
   /** True when the block contributes nothing and is left out entirely. */
   omitted: boolean;
-  /** Set when the block is waiting on a later phase: the preview shows the
-   *  phase instead of pretending the user left it empty. */
+  /** Set when the block is waiting on a later phase (协作者 / 定时任务 …):
+   *  the preview shows 即将支持 instead of pretending the user left it
+   *  empty. Memory no longer uses this — its guide is gated by
+   *  `memoryAvailable` instead. */
   planned?: number;
   /**
    * `external` blocks belong to the host CLI (its own system prompt) and are
@@ -115,10 +117,10 @@ export interface AssembleInput {
   /** This bot's MEMORY, already rendered as `- item` lines. */
   memory?: string;
   /**
-   * Whether the `memory` tool actually exists in this build. Default false:
-   * until the memory phase ships, injecting the guide would instruct the
-   * model to call a tool it cannot call. The preview still shows where the
-   * block will sit.
+   * Whether the `memory` tool is mounted for this session. Default false:
+   * on engines that cannot mount it, injecting the guide would instruct the
+   * model to call a tool it cannot call. The tool exists in this build
+   * (memory/mcp.rs); the flag is per-engine.
    */
   memoryAvailable?: boolean;
   /** Phase of the memory feature, for the preview's badge. */

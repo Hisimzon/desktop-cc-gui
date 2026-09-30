@@ -1,17 +1,11 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import ArrowDown from "lucide-react/dist/esm/icons/arrow-down";
-import ArrowDownToLine from "lucide-react/dist/esm/icons/arrow-down-to-line";
 import Bot from "lucide-react/dist/esm/icons/bot";
-import Brain from "lucide-react/dist/esm/icons/brain";
 import Clock from "lucide-react/dist/esm/icons/clock";
 import MessageSquare from "lucide-react/dist/esm/icons/message-square";
 import MessageSquarePlus from "lucide-react/dist/esm/icons/message-square-plus";
 import Monitor from "lucide-react/dist/esm/icons/monitor";
-import NotebookPen from "lucide-react/dist/esm/icons/notebook-pen";
-import RefreshCw from "lucide-react/dist/esm/icons/refresh-cw";
-import ShieldCheck from "lucide-react/dist/esm/icons/shield-check";
-import UserRound from "lucide-react/dist/esm/icons/user-round";
 import Users from "lucide-react/dist/esm/icons/users";
 import { Chip } from "@/components/base/chips/chip";
 import { cx } from "@/utils/cx";
@@ -30,8 +24,9 @@ import type { BotAvatar } from "@/lib/ipc";
  */
 
 /** 概念图能画的分区：也是「还没做完」的页签清单。文案与页签标签共用同一份，
- *  避免同一个东西写两遍。 */
-export const PLANNED_TABS = ["runtime", "memory", "routines", "collab"] as const;
+ *  避免同一个东西写两遍。记忆已上线（真实面板在 memory-section.tsx），不再
+ *  属于这里。 */
+export const PLANNED_TABS = ["runtime", "routines", "collab"] as const;
 export type PlannedTabId = (typeof PLANNED_TABS)[number];
 
 /** 这个页签是否属于「即将支持」的四个分区。 */
@@ -45,7 +40,6 @@ export const PLANNED_TAB_COPY: Record<
   { titleKey: string; descKey: string }
 > = {
   runtime: { titleKey: "settings.botTabRuntime", descKey: "settings.botRuntimeDesc" },
-  memory: { titleKey: "settings.botTabMemory", descKey: "settings.botMemoryDesc" },
   routines: { titleKey: "settings.botTabRoutines", descKey: "settings.botRoutinesDesc" },
   collab: { titleKey: "settings.botTabCollab", descKey: "settings.botCollabDesc" },
 };
@@ -203,60 +197,6 @@ function RuntimeConcept({ avatar, name }: ConceptBot) {
   );
 }
 
-/** 记忆：两条写入路径过同一道闸，落到两个账本，下个会话再注入。 */
-function MemoryConcept() {
-  const { t } = useTranslation();
-  return (
-    <div className="flex flex-col">
-      <Step
-        icon={<MessageSquare className={ICON} aria-hidden />}
-        title={t("settings.botConceptMemoryTurn")}
-        note={t("settings.botConceptMemoryTurnNote")}
-      />
-      <Down />
-      <Pair>
-        <Step
-          icon={<Brain className={ICON} aria-hidden />}
-          title={t("settings.botConceptMemoryTool")}
-          note={t("settings.botConceptMemoryToolNote")}
-        />
-        <Step
-          icon={<RefreshCw className={ICON} aria-hidden />}
-          title={t("settings.botConceptMemoryReview")}
-          note={t("settings.botConceptMemoryReviewNote")}
-        />
-      </Pair>
-      <Down label={t("settings.botConceptMemoryGate")} />
-      <Step
-        icon={<ShieldCheck className={ICON} aria-hidden />}
-        title={t("settings.botConceptMemoryGateTitle")}
-        note={t("settings.botConceptMemoryGateNote")}
-      />
-      <Down />
-      <Pair>
-        <Step
-          className="flex-1"
-          icon={<NotebookPen className={ICON} aria-hidden />}
-          title={t("settings.botConceptMemoryBook")}
-          note={t("settings.botConceptMemoryBookNote")}
-        />
-        <Step
-          className="flex-1"
-          icon={<UserRound className={ICON} aria-hidden />}
-          title={t("settings.botConceptMemoryUserBook")}
-          note={t("settings.botConceptMemoryUserBookNote")}
-        />
-      </Pair>
-      <Down label={t("settings.botConceptMemoryInject")} />
-      <Step
-        icon={<ArrowDownToLine className={ICON} aria-hidden />}
-        title={t("settings.botConceptMemoryInjectTitle")}
-        note={t("settings.botConceptMemoryInjectNote")}
-      />
-    </div>
-  );
-}
-
 /** 定时任务：到点、客户端在不在、跑一次、结果回聊天。 */
 function RoutinesConcept() {
   const { t } = useTranslation();
@@ -341,8 +281,6 @@ export function BotConceptDiagram({
   switch (tab) {
     case "runtime":
       return <RuntimeConcept avatar={avatar} name={name} />;
-    case "memory":
-      return <MemoryConcept />;
     case "routines":
       return <RoutinesConcept />;
     case "collab":

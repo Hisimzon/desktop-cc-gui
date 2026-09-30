@@ -10,6 +10,7 @@ import {
   type PromptBlock,
 } from "@/features/bots/bot-prompt";
 import { skillIndexFor } from "@/features/bots/bot-block";
+import { renderMemory, useMemoryStore } from "@/features/bots/memory";
 
 /** Per-block ceiling shown next to the count. SOUL and AGENTS share one
  *  budget (the editor's own bar tracks it), so neither carries a trailing
@@ -43,6 +44,12 @@ export function BotPromptPreview({
   const { t } = useTranslation();
   const [skills, setSkills] = useState<{ name: string; description: string }[] | null>(null);
   const [refreshed, setRefreshed] = useState(false);
+  const refreshMemory = useMemoryStore((s) => s.refresh);
+  const memoryView = useMemoryStore((s) => (s.botId === bot.id ? s.view : null));
+
+  useEffect(() => {
+    void refreshMemory(bot.id);
+  }, [bot.id, refreshMemory]);
 
   const skillsKey = bot.capabilities.skills.join(",");
   useEffect(() => {
@@ -61,9 +68,19 @@ export function BotPromptPreview({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skillsKey]);
 
+  // 记忆区块按预览打开时的账本渲染。工具可用性由引擎决定（Claude Code /
+  // Codex / omp），预览不知道下一个会话选哪个引擎，所以按「记忆开着就有
+  // 说明」展示；记忆页签里说明了哪些引擎真能写入。
   const assembled = useMemo(
-    () => assembleBotPrompt({ bot, skills: skills ?? [] }),
-    [bot, skills],
+    () =>
+      assembleBotPrompt({
+        bot,
+        skills: skills ?? [],
+        user: memoryView ? renderMemory(memoryView.user.entries) : "",
+        memory: memoryView?.memory ? renderMemory(memoryView.memory.entries) : "",
+        memoryAvailable: bot.memory.enabled !== false,
+      }),
+    [bot, skills, memoryView],
   );
 
   const proseChars = assembled.blocks

@@ -348,7 +348,6 @@ export function CapabilitiesSection({
           </p>
         </div>
         {[
-          { id: "memory", label: t("settings.botToolMemory") },
           { id: "session_search", label: t("settings.botToolSessionSearch") },
           { id: "delegate_task", label: t("settings.botToolDelegate") },
         ].map((tool) => (
@@ -365,6 +364,9 @@ export function CapabilitiesSection({
             <Switch size="sm" isSelected={false} isDisabled aria-label={tool.label} />
           </div>
         ))}
+        <p className="border-t border-separator-border px-3.5 py-2.5 text-caption-1-regular text-text-tertiary">
+          {t("settings.botToolsMemoryHint")}
+        </p>
       </div>
     </div>
   );

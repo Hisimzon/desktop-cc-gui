@@ -1,19 +1,21 @@
-import type { BotConfig } from "@/lib/ipc";
+import { ipc, type BotConfig } from "@/lib/ipc";
 import { cachedInstalledSkills } from "@/features/skills/api";
 import { buildBotBlock } from "@/features/chat/components/agent-block";
 import { assembleBotPrompt, type SkillIndexEntry } from "./bot-prompt";
+import { renderMemory } from "./memory";
 
 /**
  * Bot → outgoing prompt block. The send path freezes the result on the
  * thread's selection (see selected-bot.ts), so this runs once per session,
  * not once per message.
  *
- * What goes in today is what exists today: identity, SOUL, AGENTS and the
- * skills index. The USER profile, MEMORY and the memory guide arrive with the
- * memory phase; 协作者 arrives with delegation. `assembleBotPrompt` marks
- * those blocks as planned instead of silently leaving them out, and the send
- * path passes no `memoryAvailable`, so the model is never told about a tool
- * this build does not have.
+ * What goes in is what exists: identity, SOUL, AGENTS, the skills index, the
+ * global USER profile and this bot's MEMORY. The memory guide is included
+ * only when `memoryToolAvailable` is true (the engine can mount the app's
+ * memory MCP server, see features/bots/memory.ts) — otherwise the model
+ * would be told to call a tool it cannot call. 协作者 arrives with
+ * delegation; `assembleBotPrompt` marks it as planned instead of silently
+ * leaving it out.
  */
 
 /** Avatar → the single character the transcript badge can carry. Generated
@@ -38,10 +40,41 @@ export async function skillIndexFor(bot: BotConfig): Promise<SkillIndexEntry[]> 
   return entries.filter((entry) => enabled.includes(entry.name));
 }
 
+/**
+ * The two ledgers, already rendered as `- item` lines. A read failure is not
+ * fatal to the turn: memory is context, and sending without it beats refusing
+ * to send at all. It is logged so a persistent failure is visible.
+ */
+async function memoryForPrompt(
+  bot: BotConfig,
+): Promise<{ user: string; memory: string }> {
+  try {
+    const view = await ipc.memoryList(bot.id);
+    return {
+      user: renderMemory(view.user.entries),
+      memory: view.memory ? renderMemory(view.memory.entries) : "",
+    };
+  } catch (error) {
+    console.warn("[memory] loading ledgers for the prompt failed", error);
+    return { user: "", memory: "" };
+  }
+}
+
 /** Build the `## Agent Role and Instructions` tail block for a bot. */
-export async function buildBotPromptBlock(bot: BotConfig): Promise<string> {
+export async function buildBotPromptBlock(
+  bot: BotConfig,
+  options?: { memoryToolAvailable?: boolean },
+): Promise<string> {
   const skills = await skillIndexFor(bot);
-  const assembled = assembleBotPrompt({ bot, skills });
+  const memoryOn = bot.memory.enabled !== false;
+  const ledgers = memoryOn ? await memoryForPrompt(bot) : null;
+  const assembled = assembleBotPrompt({
+    bot,
+    skills,
+    user: ledgers?.user,
+    memory: ledgers?.memory,
+    memoryAvailable: memoryOn && options?.memoryToolAvailable === true,
+  });
   return buildBotBlock({
     name: bot.name,
     icon: avatarGlyph(bot),
