@@ -1,5 +1,17 @@
 # Chat streaming regression
 
+Open `/tests/browser/concurrent-status.html` for concurrent session indicators:
+the real `AiChatSidebar` and `SessionTab` each render 1, 6 (default), or 12
+synthetic sessions. Switch Processing / Retry / Complete, light / dark, and
+Normal / Reduced motion. The fixture selects the shipped reduced-motion CSS
+declaration by changing its media condition, without overriding its animation
+styles. Processing must retain a changing `transform` on all status dots, while
+Retry, Complete and Reduced motion must have no running status animation.
+The JSON readout reports FAIL if an active keyframe includes any property other
+than `transform` or `opacity` (including `boxShadow`, `filter` or
+`backgroundPosition`). This checks animation contracts and visible states,
+not native CPU/GPU usage; no model, real IPC or saved conversation is used.
+
 Open `/tests/browser/relay-plugin.html` for the installable Relay plugin's actual
 React UI with a fake Agent transport. The plugin source is a sibling checkout at
 `../ccgui-plugin/ccgui-plugin-plan-execute-relay` (dev server allows sibling
