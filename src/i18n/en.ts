@@ -1265,6 +1265,7 @@ export const en: Messages = {
     discardConfirm: 'Discard changes to "{{path}}"? This cannot be undone.',
     discardAll: "Discard all",
     discardAllConfirm: "Discard all changes to {{count}} files? This cannot be undone.",
+    commitUnstageConfirm: "Committing the selected files will first unstage {{count}} staged file(s) that are not selected (their changes stay in the worktree). Continue?",
     stageAll: "Stage all",
     unstageAll: "Unstage all",
     commit: "Commit",
@@ -1283,6 +1284,10 @@ export const en: Messages = {
     noChanges: "No changes",
     uncommittedChanges: "uncommitted changes",
     newFile: "New",
+    viewAsTree: "View as tree",
+    viewAsList: "View as list",
+    commitWithCount: "Commit ({{count}})",
+    selectedCount: "{{count}} selected",
   },
   worktree: {
     // Sidebar

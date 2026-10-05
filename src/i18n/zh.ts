@@ -1210,6 +1210,7 @@ export const zh = {
     discardConfirm: "确定要撤销对“{{path}}”的更改吗？更改将无法恢复。",
     discardAll: "全部撤销",
     discardAllConfirm: "确定要撤销这 {{count}} 个文件的全部更改吗？更改将无法恢复。",
+    commitUnstageConfirm: "提交所选变更前，需要先将 {{count}} 个已暂存但未勾选的文件移出暂存区（改动本身不会丢失）。继续提交吗？",
     stageAll: "全部暂存",
     unstageAll: "全部取消暂存",
     commit: "提交",
@@ -1228,6 +1229,10 @@ export const zh = {
     noChanges: "没有变更",
     uncommittedChanges: "个未提交变更",
     newFile: "新文件",
+    viewAsTree: "切换为树状视图",
+    viewAsList: "切换为列表视图",
+    commitWithCount: "提交 ({{count}})",
+    selectedCount: "已选 {{count}} 项",
   },
   worktree: {
     // 侧栏
