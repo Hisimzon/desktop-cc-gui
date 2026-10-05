@@ -36,7 +36,12 @@ vi.mock("@/components/base/tooltip/tooltip", () => ({
 }));
 
 vi.mock("@/components/dialogs", () => ({
-  ConfirmDialog: ({ onConfirm }: { onConfirm: () => void }) => <button onClick={onConfirm}>confirm</button>,
+  ConfirmDialog: ({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) => (
+    <>
+      <button onClick={onConfirm}>confirm</button>
+      <button onClick={onCancel}>cancel</button>
+    </>
+  ),
 }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -59,7 +64,7 @@ describe("ChangesPanel tree view and checkbox selection", () => {
             { path: "src/features/git/store.ts", status: "M", additions: 5, deletions: 0 },
             { path: "docs/readme.md", status: "M", additions: 1, deletions: 1 },
           ],
-          untracked: [{ path: "new-file.ts", status: "??" }],
+          untracked: [{ path: "new-file.ts", status: "added" }],
         },
       },
       refresh: vi.fn().mockResolvedValue(undefined),
@@ -227,5 +232,128 @@ describe("ChangesPanel tree view and checkbox selection", () => {
     expect(useGitStore.getState().stage).toHaveBeenCalledWith("/repo", ["src/features/git/ChangesPanel.tsx"]);
     // And called commit with message
     expect(useGitStore.getState().commit).toHaveBeenCalledWith("/repo", "feat: new tree view");
+  });
+
+  function typeCommitMessage(text: string) {
+    const textarea = container.querySelector<HTMLTextAreaElement>("textarea")!;
+    act(() => {
+      const nativeSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLTextAreaElement.prototype,
+        "value",
+      )?.set;
+      nativeSetter?.call(textarea, text);
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  }
+
+  function clickCommitButton() {
+    const commitBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("git.commit"),
+    )!;
+    expect(commitBtn.disabled).toBe(false);
+    act(() => {
+      commitBtn.click();
+    });
+  }
+
+  function commitDialogButtons() {
+    return Array.from(container.querySelectorAll("button")).filter(
+      (b) => b.textContent === "confirm" || b.textContent === "cancel",
+    );
+  }
+
+  it("asks for confirmation before unstaging staged-but-unselected files", async () => {
+    act(() => root.render(<ChangesPanel workspacePath="/repo" repoPath="/repo" />));
+
+    // Uncheck the default-selected staged file, select an unstaged one instead
+    const stagedCheckbox = container.querySelector<HTMLInputElement>('input[aria-label="staged-root.ts"]')!;
+    act(() => {
+      stagedCheckbox.click();
+    });
+    const fileCheckbox = container.querySelector<HTMLInputElement>(
+      'input[aria-label="src/features/git/ChangesPanel.tsx"]',
+    )!;
+    act(() => {
+      fileCheckbox.click();
+    });
+    typeCommitMessage("feat: only the checked file");
+
+    clickCommitButton();
+
+    // Nothing mutating may run before the user confirms
+    expect(useGitStore.getState().commit).not.toHaveBeenCalled();
+    expect(useGitStore.getState().unstage).not.toHaveBeenCalled();
+    expect(useGitStore.getState().stage).not.toHaveBeenCalled();
+    expect(commitDialogButtons().length).toBeGreaterThan(0);
+
+    const confirmBtn = commitDialogButtons().find((b) => b.textContent === "confirm")!;
+    await act(async () => {
+      confirmBtn.click();
+    });
+
+    expect(useGitStore.getState().unstage).toHaveBeenCalledWith("/repo", ["staged-root.ts"]);
+    expect(useGitStore.getState().stage).toHaveBeenCalledWith("/repo", [
+      "src/features/git/ChangesPanel.tsx",
+    ]);
+    expect(useGitStore.getState().commit).toHaveBeenCalledWith("/repo", "feat: only the checked file");
+  });
+
+  it("canceling the dialog leaves the index and worktree untouched", () => {
+    act(() => root.render(<ChangesPanel workspacePath="/repo" repoPath="/repo" />));
+
+    const stagedCheckbox = container.querySelector<HTMLInputElement>('input[aria-label="staged-root.ts"]')!;
+    act(() => {
+      stagedCheckbox.click();
+    });
+    const fileCheckbox = container.querySelector<HTMLInputElement>(
+      'input[aria-label="src/features/git/ChangesPanel.tsx"]',
+    )!;
+    act(() => {
+      fileCheckbox.click();
+    });
+    typeCommitMessage("feat: unchecked staged file");
+
+    clickCommitButton();
+    expect(commitDialogButtons().length).toBeGreaterThan(0);
+
+    const cancelBtn = commitDialogButtons().find((b) => b.textContent === "cancel")!;
+    act(() => {
+      cancelBtn.click();
+    });
+
+    expect(useGitStore.getState().commit).not.toHaveBeenCalled();
+    expect(useGitStore.getState().unstage).not.toHaveBeenCalled();
+    expect(useGitStore.getState().stage).not.toHaveBeenCalled();
+    // Dialog closed
+    expect(commitDialogButtons().length).toBe(0);
+  });
+
+  it("stages a partially staged file in full so it commits whole", async () => {
+    // Same path in both groups: indexed half + further worktree edits.
+    useGitStore.setState({
+      statusByWorkspace: {
+        "/repo": {
+          branch: "main",
+          ahead: 0,
+          behind: 0,
+          staged: [{ path: "partial.ts", status: "M" }],
+          unstaged: [{ path: "partial.ts", status: "M", additions: 3, deletions: 1 }],
+          untracked: [],
+        },
+      },
+    });
+
+    act(() => root.render(<ChangesPanel workspacePath="/repo" repoPath="/repo" />));
+
+    // Staged file is selected by default; committing must not silently
+    // include only its indexed half.
+    typeCommitMessage("feat: whole file");
+    clickCommitButton();
+
+    await act(async () => {});
+
+    expect(useGitStore.getState().stage).toHaveBeenCalledWith("/repo", ["partial.ts"]);
+    expect(useGitStore.getState().unstage).not.toHaveBeenCalled();
+    expect(useGitStore.getState().commit).toHaveBeenCalledWith("/repo", "feat: whole file");
   });
 });

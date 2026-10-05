@@ -84,7 +84,7 @@ describe("ChangesPanel virtual rows", () => {
           branch: "main", ahead: 0, behind: 0,
           staged: [{ path: "staged.ts", status: "M" }],
           unstaged: Array.from({ length: 2000 }, (_, index) => ({ path: `file-${index}.ts`, status: "M" })),
-          untracked: [{ path: "new.ts", status: "??" }],
+          untracked: [{ path: "new.ts", status: "added" }],
         },
       },
       refresh: vi.fn().mockResolvedValue(undefined),

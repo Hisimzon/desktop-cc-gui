@@ -140,6 +140,10 @@ export const FileRow = memo(function FileRow({
               <span className={cx("min-w-0 truncate font-medium", nameColor)}>{displayName}</span>
             ) : (
               <>
+                {/* Directory truncates from the left (…/foo/bar) so the filename
+                    — the most important part — stays visible as long as possible;
+                    it right-truncates only when it alone overflows. The tooltip
+                    below shows the full path on hover. */}
                 {dirPart && (
                   <span dir="rtl" className="min-w-0 truncate text-left text-text-tertiary">
                     <bdo dir="ltr">{dirPart}</bdo>
@@ -173,6 +177,11 @@ export const FileRow = memo(function FileRow({
         )}
       </span>
       <div
+        // Row actions overlay the trailing edge instead of reserving
+        // permanent columns, so path + stats use the full row width. The
+        // solid background (matching the row's own bg in each state) hides
+        // the text underneath; reveal happens on row hover or keyboard
+        // focus within the row.
         className={cx(
           "absolute inset-y-0 right-1.5 flex items-center gap-0.5 pl-3",
           "bg-background-primary-default group-hover:bg-background-secondary-hover",
@@ -307,6 +316,11 @@ export const DirectoryRow = memo(function DirectoryRow({
       </button>
 
       <div
+        // Row actions overlay the trailing edge instead of reserving
+        // permanent columns, so path + stats use the full row width. The
+        // solid background (matching the row's own bg in each state) hides
+        // the text underneath; reveal happens on row hover or keyboard
+        // focus within the row.
         className={cx(
           "absolute inset-y-0 right-1.5 flex items-center gap-0.5 pl-3",
           "bg-background-primary-default group-hover:bg-background-secondary-hover",

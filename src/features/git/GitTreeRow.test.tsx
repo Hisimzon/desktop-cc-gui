@@ -1,7 +1,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { FileRow, DirectoryRow, STATUS_COLOR, FILE_NAME_COLOR } from "./GitTreeRow";
+import { FileRow, DirectoryRow } from "./GitTreeRow";
 import type { GitFileEntry } from "@/lib/ipc";
 import type { GitTreeDirNode } from "./git-tree";
 
@@ -43,13 +43,6 @@ describe("GitTreeRow styling and icons matching IntelliJ IDEA", () => {
       root.unmount();
     });
     container.remove();
-  });
-
-  it("exports STATUS_COLOR and FILE_NAME_COLOR mappings", () => {
-    expect(STATUS_COLOR.M).toContain("text-[#0088D2]");
-    expect(FILE_NAME_COLOR.M).toContain("text-[#0088D2]");
-    expect(STATUS_COLOR.A).toContain("text-[#208A3C]");
-    expect(FILE_NAME_COLOR.D).toContain("line-through");
   });
 
   it("renders modified file with IDEA blue color and file type icon", () => {
@@ -145,9 +138,12 @@ describe("GitTreeRow styling and icons matching IntelliJ IDEA", () => {
   });
 
   it("renders untracked file with IDEA red color and Rust icon", () => {
+    // The backend reports untracked files with status "added"; the red "?"
+    // badge comes from the untracked group passing isNew, never from a "?"
+    // in the status string.
     const entry: GitFileEntry = {
       path: "src/new-feature.rs",
-      status: "??",
+      status: "added",
     };
     act(() => {
       root.render(

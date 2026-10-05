@@ -45,6 +45,9 @@ export function ChangesPanel({
   visible = true,
 }: {
   workspacePath: string;
+  /** Pin the panel to this repository instead of following the file tree's
+   *  selection — for callers that render the panel outside the files
+   *  context, where a global selectedPath would silently steer it. */
   repoPath?: string;
   className?: string;
   visible?: boolean;
@@ -96,6 +99,7 @@ export function ChangesPanel({
   const [actionError, setActionError] = useState<string | null>(null);
   const [pending, setPending] = useState<Record<string, true>>({});
   const [commitMsg, setCommitMsg] = useState("");
+  /** Paths awaiting discard confirmation (one row or a whole group). */
   const [discardTarget, setDiscardTarget] = useState<string[] | null>(null);
 
   // Selected files for commit
@@ -138,6 +142,7 @@ export function ChangesPanel({
     void useGitStore.getState().loadBranches(gitWorkspacePath);
   }, [gitWorkspacePath, visible]);
 
+  /** Runs a mutating action: tracks busy state, surfaces errors inline. */
   const run = useCallback((key: string, action: () => Promise<unknown>) => {
     setPending((p) => ({ ...p, [key]: true }));
     setActionError(null);
@@ -152,6 +157,8 @@ export function ChangesPanel({
       });
   }, []);
 
+  /** Dismiss the header error: the failed action's error, else the store's
+   *  last refresh failure. */
   const dismissError = useCallback(() => {
     setActionError(null);
     useGitStore.getState().clearError(gitWorkspacePath);
@@ -233,37 +240,63 @@ export function ChangesPanel({
     });
   }, []);
 
+  /** Commit waiting on confirmation because it would unstage files the user
+   *  staged but left unchecked — that reshuffles the index (e.g. hunks
+   *  placed with `git add -p`), so it never happens silently. */
+  const [pendingCommitPlan, setPendingCommitPlan] = useState<{
+    message: string;
+    toStage: string[];
+    toUnstage: string[];
+  } | null>(null);
+
+  const runCommitPlan = useCallback(
+    (plan: { message: string; toStage: string[]; toUnstage: string[] }) => {
+      run("commit", async () => {
+        if (plan.toUnstage.length > 0) {
+          await useGitStore.getState().unstage(gitWorkspacePath, plan.toUnstage);
+        }
+        if (plan.toStage.length > 0) {
+          await useGitStore.getState().stage(gitWorkspacePath, plan.toStage);
+        }
+        await useGitStore.getState().commit(gitWorkspacePath, plan.message);
+        setCommitMsg("");
+      });
+    },
+    [run, gitWorkspacePath],
+  );
+
   const handleCommitSelected = useCallback(async () => {
     const message = commitMsg.trim();
-    if (!message || selectedFiles.size === 0) return;
+    if (!message || selectedFiles.size === 0 || !status) return;
 
-    run("commit", async () => {
-      const stagedSet = new Set((status?.staged ?? []).map((f) => f.path));
-      const toStage: string[] = [];
-      const toUnstage: string[] = [];
+    const stagedSet = new Set(status.staged.map((f) => f.path));
+    // A checked file commits in full: anything still sitting in the
+    // worktree (unstaged or untracked) gets staged too, so a partially
+    // staged file never commits only its indexed half.
+    const worktreePaths = new Set([
+      ...status.unstaged.map((f) => f.path),
+      ...status.untracked.map((f) => f.path),
+    ]);
+    const toStage: string[] = [];
+    const toUnstage: string[] = [];
+    for (const path of selectedFiles) {
+      if (worktreePaths.has(path)) {
+        toStage.push(path);
+      }
+    }
+    for (const path of stagedSet) {
+      if (!selectedFiles.has(path)) {
+        toUnstage.push(path);
+      }
+    }
 
-      for (const path of selectedFiles) {
-        if (!stagedSet.has(path)) {
-          toStage.push(path);
-        }
-      }
-      for (const path of stagedSet) {
-        if (!selectedFiles.has(path)) {
-          toUnstage.push(path);
-        }
-      }
-
-      if (toUnstage.length > 0) {
-        await useGitStore.getState().unstage(gitWorkspacePath, toUnstage);
-      }
-      if (toStage.length > 0) {
-        await useGitStore.getState().stage(gitWorkspacePath, toStage);
-      }
-
-      await useGitStore.getState().commit(gitWorkspacePath, message);
-      setCommitMsg("");
-    });
-  }, [commitMsg, selectedFiles, status, gitWorkspacePath, run]);
+    const plan = { message, toStage, toUnstage };
+    if (toUnstage.length > 0) {
+      setPendingCommitPlan(plan);
+      return;
+    }
+    runCommitPlan(plan);
+  }, [commitMsg, selectedFiles, status, runCommitPlan]);
 
   const openStagedDiff = useCallback(
     (file: string) =>
@@ -279,6 +312,9 @@ export function ChangesPanel({
   const header = visible ? (
     <ChangesPanelHeader
       workspacePath={gitWorkspacePath}
+      // Name the repository when the panel followed the file tree's
+      // selection into a nested repo — otherwise a commit there looks
+      // identical to one against the workspace root.
       followedRepoPath={
         repoPath === undefined && gitWorkspacePath !== workspacePath
           ? gitWorkspacePath
@@ -372,12 +408,26 @@ export function ChangesPanel({
           onCancel={() => setDiscardTarget(null)}
         />
       )}
+      {visible && pendingCommitPlan !== null && (
+        <ConfirmDialog
+          message={t("git.commitUnstageConfirm", {
+            count: pendingCommitPlan.toUnstage.length,
+          })}
+          onConfirm={() => {
+            const plan = pendingCommitPlan;
+            setPendingCommitPlan(null);
+            runCommitPlan(plan);
+          }}
+          onCancel={() => setPendingCommitPlan(null)}
+        />
+      )}
     </aside>
   );
 }
 
 /* -------------------------------------------------------------------------- */
 
+/** Scrollable body: loading / empty placeholder, or the three file groups. */
 function ChangesBody({
   status,
   visible,
@@ -494,6 +544,7 @@ function ChangesBody({
   );
 }
 
+/** Centered loading / no-changes placeholder. */
 function ChangesPlaceholder({ text }: { text: string }) {
   return (
     <div className="flex h-full items-center justify-center p-4">
@@ -547,8 +598,11 @@ interface GroupSectionProps {
   rowActionLabel: string;
   rowActionKind: "stage" | "unstage";
   onRowAction: (file: string) => void;
+  /** Discard is destructive and only meaningful for worktree-side groups
+   *  (unstaged/untracked); staged rows get no discard button. */
   rowDiscardLabel?: string;
   onRowDiscard?: (file: string) => void;
+  /** Red group-level discard next to the stage-all action, same groups. */
   groupDiscardLabel?: string;
   onGroupDiscard?: (files: string[]) => void;
   onOpen: (file: string) => void;
@@ -773,9 +827,9 @@ const GroupSection = memo(function GroupSection({
                     onToggleSelect={onToggleSelectDir}
                     actionLabel={rowActionLabel}
                     actionKind={rowActionKind}
-                    onAction={() => onGroupAction(item.allPaths)}
+                    onAction={onGroupAction}
                     discardLabel={rowDiscardLabel}
-                    onDiscard={() => onGroupDiscard?.(item.allPaths)}
+                    onDiscard={onGroupDiscard}
                     actionBusy={actionBusy}
                   />
                 );

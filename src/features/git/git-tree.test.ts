@@ -23,7 +23,7 @@ describe("buildGitTree", () => {
     const entries: GitFileEntry[] = [
       { path: "src/features/git/ChangesPanel.tsx", status: "M" },
       { path: "src/features/git/store.ts", status: "M" },
-      { path: "docs/readme.md", status: "??" },
+      { path: "docs/readme.md", status: "added" },
     ];
     const tree = buildGitTree(entries);
 
