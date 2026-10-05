@@ -11,7 +11,8 @@ interface VisibleTooltip {
   placement: TooltipPlacement;
 }
 
-const SHOW_DELAY = 300;
+// Matches the base Tooltip default delay so both tooltip surfaces feel identical.
+const SHOW_DELAY = 500;
 const VIEWPORT_GUTTER = 16;
 // Gap between the target and the tooltip box; the 8px SVG arrow bridges it.
 const ARROW_OFFSET = 8;
@@ -76,20 +77,25 @@ function clampMeasured(rect: DOMRect, width: number, height: number) {
  * Converts native HTML title attributes into the app TooltipContent surface.
  * This keeps legacy and third-party UI on the same themed tooltip treatment
  * without requiring every title-bearing control to be manually rewritten.
+ *
+ * The intercepted text is also copied to `aria-description` so clearing the
+ * title attribute does not strip the accessible description from controls
+ * that relied on it. The watcher sits on document.body so overlays portalled
+ * outside the React root (context menu, dialogs) get the same treatment.
  */
 export function NativeTitleTooltip() {
   const [visible, setVisible] = useState<VisibleTooltip | null>(null);
   const activeTarget = useRef<HTMLElement | null>(null);
   const showTimer = useRef<number | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
-  const managedRemovals = useRef(new WeakSet<HTMLElement>());
   // Position we already published. The effect depends on `visible`, so writing
   // x/y back would measure again; long titles reflow and that never settles.
   const clamped = useRef<{ text: string; x: number; y: number; placement: TooltipPlacement } | null>(null);
 
   useEffect(() => {
-    const root = document.getElementById("root");
-    if (!root) return;
+    // document.body, not #root: portaled overlays (context menu, dialogs)
+    // live outside the React root and must be intercepted too.
+    const root = document.body;
 
     const clearShowTimer = () => {
       if (showTimer.current !== null) {
@@ -108,16 +114,27 @@ export function NativeTitleTooltip() {
       const title = element.getAttribute("title");
       if (title) {
         element.dataset.nativeTooltip = title;
-        managedRemovals.current.add(element);
+        // Preserve the accessible description the title carried. Only remove
+        // it later if we were the ones who set it (tracked via the data flag).
+        if (!element.hasAttribute("aria-description")) {
+          element.setAttribute("aria-description", title);
+          element.dataset.nativeTooltipAria = "1";
+        }
         // Keep an empty attribute so a later React removal still emits an
         // observable mutation after the native value has been intercepted.
         element.setAttribute("title", "");
         return;
       }
-      if (!managedRemovals.current.has(element)) {
-        delete element.dataset.nativeTooltip;
+      // "" is our own placeholder — keep the copy. Only a fully removed
+      // attribute means the owner retracted the title. (A moved DOM node,
+      // e.g. a keyed list reorder, re-arrives via childList with the empty
+      // placeholder still on it and must not lose its tooltip.)
+      if (title !== null) return;
+      delete element.dataset.nativeTooltip;
+      if (element.dataset.nativeTooltipAria !== undefined) {
+        element.removeAttribute("aria-description");
+        delete element.dataset.nativeTooltipAria;
       }
-      managedRemovals.current.delete(element);
     };
 
     const scan = (node: Node) => {
@@ -145,6 +162,11 @@ export function NativeTitleTooltip() {
         }
         for (const node of record.addedNodes) scan(node);
       }
+      // A removedNodes record carries no useful per-node action, but if the
+      // active target was unmounted (row deleted while hovered, list refresh)
+      // the visible tooltip would otherwise stick at a stale position.
+      const active = activeTarget.current;
+      if (active && !active.isConnected) hide();
     });
     observer.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ["title"] });
 
@@ -162,18 +184,20 @@ export function NativeTitleTooltip() {
       }, SHOW_DELAY);
     };
 
+    // Compare the closest tooltip target of both endpoints, not raw
+    // containment: moving between nested titled elements (child with its own
+    // title inside a titled parent) must swap the tooltip, and moving within
+    // one target must not retrigger it.
     const onPointerOver = (event: PointerEvent) => {
       const target = targetFromEvent(event.target, root);
       if (!target) return;
-      const related = event.relatedTarget;
-      if (related instanceof Node && target.contains(related)) return;
+      if (targetFromEvent(event.relatedTarget, root) === target) return;
       scheduleShow(target);
     };
     const onPointerOut = (event: PointerEvent) => {
       const target = targetFromEvent(event.target, root);
       if (!target) return;
-      const related = event.relatedTarget;
-      if (related instanceof Node && target.contains(related)) return;
+      if (targetFromEvent(event.relatedTarget, root) === target) return;
       if (activeTarget.current === target) hide();
     };
     const onFocusIn = (event: FocusEvent) => {
@@ -190,6 +214,9 @@ export function NativeTitleTooltip() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") hide();
     };
+    // Pressing a control usually navigates or opens a surface; a lingering
+    // tooltip on top of it reads as a stuck overlay.
+    const onPointerDown = () => hide();
     const onScroll = () => hide();
     const onResize = () => {
       setVisible((current) => {
@@ -200,6 +227,7 @@ export function NativeTitleTooltip() {
 
     root.addEventListener("pointerover", onPointerOver);
     root.addEventListener("pointerout", onPointerOut);
+    root.addEventListener("pointerdown", onPointerDown, true);
     root.addEventListener("focusin", onFocusIn);
     root.addEventListener("focusout", onFocusOut);
     document.addEventListener("keydown", onKeyDown, true);
@@ -210,6 +238,7 @@ export function NativeTitleTooltip() {
       observer.disconnect();
       root.removeEventListener("pointerover", onPointerOver);
       root.removeEventListener("pointerout", onPointerOut);
+      root.removeEventListener("pointerdown", onPointerDown, true);
       root.removeEventListener("focusin", onFocusIn);
       root.removeEventListener("focusout", onFocusOut);
       document.removeEventListener("keydown", onKeyDown, true);
@@ -263,7 +292,7 @@ export function NativeTitleTooltip() {
     <div
       ref={tooltipRef}
       role="tooltip"
-      className="pointer-events-none fixed z-[130] w-max max-w-[min(360px,calc(100vw-32px))] rounded-lg border border-border-button-default bg-background-primary-default px-2 py-1 text-caption-1-medium text-text-secondary shadow-dropdown whitespace-pre-line break-words transition duration-150 ease-out"
+      className="pointer-events-none fixed z-[130] w-max max-w-[min(360px,calc(100vw-32px))] rounded-lg border border-border-button-default bg-background-primary-default px-2 py-1 text-caption-1-medium text-text-secondary shadow-dropdown whitespace-pre-line break-words transition duration-150 ease-out starting:opacity-0 starting:scale-95 data-[placement=bottom]:origin-top data-[placement=top]:origin-bottom"
       data-placement={visible.placement}
       style={{ left: visible.x, top: visible.y, transform }}
     >
