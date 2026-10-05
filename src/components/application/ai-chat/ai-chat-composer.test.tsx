@@ -1,9 +1,10 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { HashRouter } from "react-router-dom";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@/lib/i18n";
-import { Composer, getProxyQuickToggleAction } from "./ai-chat-composer";
+import { Composer, StatusBar, getProxyQuickToggleAction } from "./ai-chat-composer";
+import { ipc, type AppSettings } from "@/lib/ipc";
 import { extractText, getCaretOffset } from "./file-tags";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
@@ -76,5 +77,43 @@ describe("代理快捷开关", () => {
 
   it("已启用时即使地址失效也允许关闭", () => {
     expect(getProxyQuickToggleAction({ enabled: true, url: "not-a-url" })).toBe("toggle");
+  });
+});
+describe("代理快捷开关文案", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(async () => {
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+    vi.restoreAllMocks();
+  });
+  // 回归：已配置地址但代理关闭时，按钮的 aria-label 必须落到真实文案上。
+  // proxyOff/proxyTipOff 曾被误删而组件仍引用它们，纯函数测试发现不了——
+  // 只有真的渲染这个状态才能钉住。代理开关挂在 StatusBar 上。
+  it("已配置但关闭时显示中文开关文案，而不是词条编号", async () => {
+    vi.spyOn(ipc, "getAppSettings").mockResolvedValue({
+      systemProxyEnabled: false,
+      systemProxyUrl: "http://127.0.0.1:7890",
+    } as AppSettings);
+    await act(async () => {
+      root.render(
+        <HashRouter>
+          <StatusBar />
+        </HashRouter>,
+      );
+    });
+    expect(
+      container.querySelector('button[aria-label="网络代理：已关闭，点击开启"]'),
+    ).not.toBeNull();
+    expect(container.querySelector('button[aria-label="chat.proxyOff"]')).toBeNull();
   });
 });
