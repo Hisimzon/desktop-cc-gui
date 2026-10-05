@@ -97,6 +97,17 @@ describe("NativeTitleTooltip interception", () => {
     expect(button.getAttribute("aria-description")).toBe("Author's own description");
     button.remove();
   });
+  it("updates our aria-description copy when the title text changes", async () => {
+    const button = titledButton("Old hint");
+    await flushObserver();
+    expect(button.getAttribute("aria-description")).toBe("Old hint");
+
+    button.setAttribute("title", "New hint");
+    await flushObserver();
+
+    expect(button.dataset.nativeTooltip).toBe("New hint");
+    expect(button.getAttribute("aria-description")).toBe("New hint");
+  });
 });
 
 describe("NativeTitleTooltip display", () => {

@@ -114,9 +114,9 @@ export function NativeTitleTooltip() {
       const title = element.getAttribute("title");
       if (title) {
         element.dataset.nativeTooltip = title;
-        // Preserve the accessible description the title carried. Only remove
-        // it later if we were the ones who set it (tracked via the data flag).
-        if (!element.hasAttribute("aria-description")) {
+        // When the flag is already set the copy is ours, so a changed title
+        // must refresh it; otherwise fill only an absent attribute.
+        if (element.dataset.nativeTooltipAria !== undefined || !element.hasAttribute("aria-description")) {
           element.setAttribute("aria-description", title);
           element.dataset.nativeTooltipAria = "1";
         }
