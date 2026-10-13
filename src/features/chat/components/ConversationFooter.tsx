@@ -243,6 +243,7 @@ function FooterStatusBar({
     [usage, t],
   );
   const archivedWorkspaces = useChatStore((s) => s.archivedWorkspaces);
+  const workspaceAliases = useChatStore((s) => s.workspaceAliases);
   const compactContext = useChatStore((s) => s.compactContext);
   const refreshSessionUsage = useChatStore((s) => s.refreshSessionUsage);
   const wide = useChatStore((s) => s.wideLayout);
@@ -385,13 +386,23 @@ function FooterStatusBar({
     },
     [workspaces, archivedWorkspaces],
   );
-  const statusFolders = useMemo(() => visibleWorkspaces.map((w) => baseName(w.path)), [visibleWorkspaces]);
+  const statusFolders = useMemo(
+    () =>
+      visibleWorkspaces.map((w) => {
+        const alias = workspaceAliases[w.id]?.trim();
+        return alias || baseName(w.path);
+      }),
+    [visibleWorkspaces, workspaceAliases],
+  );
   const handleFolderSelect = useCallback(
     (name: string) => {
-      const target = visibleWorkspaces.find((w) => baseName(w.path) === name);
+      const target = visibleWorkspaces.find((w) => {
+        const alias = workspaceAliases[w.id]?.trim();
+        return (alias || baseName(w.path)) === name;
+      });
       if (target) startNewChat(target.path);
     },
-    [visibleWorkspaces, startNewChat],
+    [visibleWorkspaces, workspaceAliases, startNewChat],
   );
 
   return (
@@ -402,7 +413,15 @@ function FooterStatusBar({
         branchRepoName={branchRepoName}
         onBranchSelect={onBranchSelect}
         folders={statusFolders}
-        selectedFolder={active ? baseName(active.workspacePath) : undefined}
+        selectedFolder={
+          active
+            ? (() => {
+                const workspace = workspaces.find((w) => w.path === active.workspacePath);
+                const alias = workspace ? workspaceAliases[workspace.id]?.trim() : "";
+                return alias || baseName(active.workspacePath);
+              })()
+            : undefined
+        }
         onFolderSelect={handleFolderSelect}
         usagePct={usage?.pct}
         contextMax={contextMax}

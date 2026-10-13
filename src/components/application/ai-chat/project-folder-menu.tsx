@@ -45,11 +45,14 @@ export function ProjectFolderMenu({
     <AriaDialogTrigger isOpen={isOpen} onOpenChange={setOpen}>
       <AriaButton
         ref={triggerRef}
-        className="flex cursor-pointer items-center gap-1 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+        className="flex max-w-full min-w-0 cursor-pointer items-center gap-1 overflow-hidden rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
       >
         <FolderSymlink className="size-3.5 shrink-0 text-foreground-icon-tertiary" aria-hidden />
-        <span className="flex items-center">
-          <span className="text-caption-1-regular whitespace-nowrap text-text-tertiary">
+        <span className="flex min-w-0 items-center overflow-hidden">
+          <span
+            title={selectedName}
+            className="min-w-0 truncate text-caption-1-regular text-text-tertiary"
+          >
             {selectedName ?? t("chat.noProjectSelected")}
           </span>
           <ChevronDown
