@@ -484,7 +484,7 @@ export function StatusBar({
   onBranchSelect?: (name: string) => void;
   folders?: string[];
   selectedFolder?: string;
-  onFolderSelect?: (name: string) => void;
+  onFolderSelect?: (index: number) => void;
   usagePct?: number;
   contextMax?: number;
   contextSegments?: ContextSegment[];

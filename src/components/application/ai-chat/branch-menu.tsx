@@ -61,11 +61,11 @@ export function BranchMenu({
         <span className="flex min-w-0 items-center overflow-hidden">
           {repoName && (
             <>
-              <span className="text-caption-1-medium whitespace-nowrap text-text-secondary">
+              <span className="min-w-0 truncate text-caption-1-medium text-text-secondary">
                 {repoName}
               </span>
               <span
-                className="px-1 text-caption-1-regular text-text-tertiary"
+                className="shrink-0 px-1 text-caption-1-regular text-text-tertiary"
                 aria-hidden
               >
                 ·

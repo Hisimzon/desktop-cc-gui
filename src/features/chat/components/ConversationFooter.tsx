@@ -395,14 +395,14 @@ function FooterStatusBar({
     [visibleWorkspaces, workspaceAliases],
   );
   const handleFolderSelect = useCallback(
-    (name: string) => {
-      const target = visibleWorkspaces.find((w) => {
-        const alias = workspaceAliases[w.id]?.trim();
-        return (alias || baseName(w.path)) === name;
-      });
+    (index: number) => {
+      // Positional, not name-based: statusFolders is aligned with
+      // visibleWorkspaces, and duplicate aliases/basenames would all match
+      // the first entry under string equality.
+      const target = visibleWorkspaces[index];
       if (target) startNewChat(target.path);
     },
-    [visibleWorkspaces, workspaceAliases, startNewChat],
+    [visibleWorkspaces, startNewChat],
   );
 
   return (
